@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{margin:0}</style>
+<title>핫스팟 객체 표현</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* 레이아웃: 좁은 단일 컬럼 노트. 중심에 객체 메모리 배치도, 나머지는 짧은 정의 목록 */
+:root {
+  --bg: #f2f5f6;
+  --surface: #ffffff;
+  --ink: #16212a;
+  --muted: #5a6b76;
+  --line: #d3dce1;
+  --accent: #0a6c74;
+  --accent-soft: #d9eef0;
+  --warm: #a8470d;
+  --warm-soft: #fbe6d6;
+  --code-bg: #e7edf0;
+  --font-body: "IBM Plex Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0f171c;
+    --surface: #17232a;
+    --ink: #e4edf1;
+    --muted: #8fa3ad;
+    --line: #2b3d47;
+    --accent: #4cc2cc;
+    --accent-soft: #123940;
+    --warm: #f0a070;
+    --warm-soft: #3a2415;
+    --code-bg: #1f2f37;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f171c;
+  --surface: #17232a;
+  --ink: #e4edf1;
+  --muted: #8fa3ad;
+  --line: #2b3d47;
+  --accent: #4cc2cc;
+  --accent-soft: #123940;
+  --warm: #f0a070;
+  --warm-soft: #3a2415;
+  --code-bg: #1f2f37;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.7;
+  padding-inline: 20px;
+}
+main { max-width: 760px; margin-inline: auto; padding-block: 48px 72px; display: flex; flex-direction: column; gap: 40px; }
+h1, h2, h3 { text-wrap: balance; line-height: 1.3; margin: 0; }
+h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 20px; font-weight: 600; }
+h3 { font-size: 15px; font-weight: 600; }
+p { margin: 0; max-width: 65ch; }
+code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--code-bg);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+header { display: flex; flex-direction: column; gap: 10px; }
+header p { color: var(--muted); }
+section { display: flex; flex-direction: column; gap: 16px; }
+
+/* 탭 */
+.tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); position: sticky; top: env(safe-area-inset-top, 0px); background: var(--bg); z-index: 2; margin-top: -8px; }
+.tab { font: inherit; font-size: 14px; font-weight: 500; color: var(--muted); background: none; border: 0; border-bottom: 2px solid transparent; padding: 12px 14px; cursor: pointer; white-space: nowrap; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 4px; }
+.panel { display: flex; flex-direction: column; gap: 40px; }
+.js .panel[hidden] { display: none; }
+
+/* 배치도 */
+.figure { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow-x: auto; }
+.figure svg { display: block; width: 100%; min-width: 740px; height: auto; }
+.figure text { font-family: var(--font-body); font-size: 12px; fill: var(--ink); }
+.figure .t-title { font-size: 13px; font-weight: 600; }
+.figure .t-muted { fill: var(--muted); }
+.figure .t-region { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; fill: var(--muted); }
+.figure .t-mark { fill: var(--accent); font-weight: 600; }
+.figure .t-klass { fill: var(--warm); font-weight: 600; }
+.figure .region { fill: none; stroke: var(--line); stroke-width: 1.5; }
+.figure .dash { stroke-dasharray: 5 4; }
+.figure .frame { fill: var(--bg); stroke: var(--line); }
+.figure .c-mark { fill: var(--accent-soft); stroke: var(--accent); }
+.figure .c-klass { fill: var(--warm-soft); stroke: var(--warm); }
+.figure .c-field { fill: var(--surface); stroke: var(--line); }
+.figure .c-ref { fill: var(--surface); stroke: var(--accent); }
+.figure .arrow { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+.figure .arrow-k { fill: none; stroke: var(--warm); stroke-width: 1.5; }
+.figure .head { fill: var(--accent); }
+.figure .head-k { fill: var(--warm); }
+.figure .dot { fill: var(--accent); }
+.figure .dot-k { fill: var(--warm); }
+.figure .c-vt { fill: var(--surface); stroke: var(--warm); }
+.figure .c-vt-hot { fill: var(--warm-soft); stroke: var(--warm); stroke-width: 2; }
+.figure .mono { font-family: var(--font-mono); font-size: 10.5px; }
+pre.plain { margin: 0; background: var(--code-bg); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.6; }
+pre.plain code { background: none; padding: 0; font-size: inherit; }
+.figure .axis { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+.figure .curve { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+.figure .c-live { fill: var(--accent-soft); stroke: var(--accent); }
+.figure .t-live { fill: var(--accent); font-weight: 600; }
+.figure .c-new { fill: var(--warm-soft); stroke: var(--warm); }
+.figure .visit { fill: var(--accent); }
+.figure .c-empty { fill: none; stroke: var(--line); stroke-dasharray: 3 3; }
+.shot { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.shot img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.shot figcaption { color: var(--muted); font-size: 14px; }
+.figcap { color: var(--muted); font-size: 14px; }
+
+/* 정의 목록 */
+dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 10px 20px; }
+dt { font-family: var(--font-mono); font-size: 14px; font-weight: 500; color: var(--accent); padding-top: 2px; }
+dd { margin: 0; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+tr:last-child td { border-bottom: 0; }
+.note {
+  background: var(--warm-soft);
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-size: 14px;
+}
+.note b { color: var(--warm); }
+ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+li { max-width: 65ch; }
+footer { color: var(--muted); font-size: 13px; }
+
+@media (max-width: 560px) {
+  h1 { font-size: 25px; }
+  dl { grid-template-columns: 1fr; gap: 2px; }
+  dd { margin-bottom: 10px; }
+}
+</style>
+
+<main>
+  <header>
+    <span class="eyebrow">HotSpot · 4.3 ~ 4.7</span>
+    <h1>런타임에서 객체는 어떻게 표현되는가</h1>
+    <p>핫스팟은 자바 객체를 <code>oop</code> 구조로 표현한다. 모든 힙 객체는 머신 워드 두 개짜리 헤더로 시작하고, 클래스 정보는 힙 밖의 klass에 있다.</p>
+  </header>
+  <nav class="tabs" role="tablist" aria-label="소절">
+    <button class="tab" role="tab" id="t-object" aria-controls="p-object" type="button">객체 표현</button>
+    <button class="tab" role="tab" id="t-klass" aria-controls="p-klass" type="button">mark · klass · Class</button>
+    <button class="tab" role="tab" id="t-oops" aria-controls="p-oops" type="button">압축 oop</button>
+    <button class="tab" role="tab" id="t-weak" aria-controls="p-weak" type="button">약한 세대 가설</button>
+    <button class="tab" role="tab" id="t-gc" aria-controls="p-gc" type="button">GC 기술</button>
+    <button class="tab" role="tab" id="t-parallel" aria-controls="p-parallel" type="button">병렬 컬렉터</button>
+    <button class="tab" role="tab" id="t-hotspot" aria-controls="p-hotspot" type="button">핫스팟이란</button>
+  </nav>
+
+  <div class="panel" role="tabpanel" id="p-object" aria-labelledby="t-object">
+    <section>
+    <h2>메모리 배치</h2>
+    <div class="figure">
+<svg viewBox="0 0 800 450" role="img" aria-label="왼쪽 스택 프레임의 참조 변수가 가운데 힙의 객체들을 가리키고, 각 객체의 klass word 가 힙 밖 klass 를 가리키는 배치도">
+  <defs>
+    <marker id="h1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="head" d="M0 0 L10 5 L0 10 z"/></marker>
+    <marker id="h2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="head-k" d="M0 0 L10 5 L0 10 z"/></marker>
+  </defs>
+
+  <!-- 스택 -->
+  <text class="t-region" x="10" y="20">스택 · 스레드마다 하나</text>
+  <rect class="region" x="10" y="30" width="230" height="232" rx="8"/>
+
+  <rect class="frame" x="24" y="44" width="202" height="76" rx="6"/>
+  <text class="t-title" x="36" y="62">change(Person p)</text>
+  <rect class="c-ref" x="36" y="72" width="178" height="32" rx="4"/>
+  <text x="46" y="92">p</text><text class="t-muted" x="66" y="92">참조 · 복사본</text>
+  <circle class="dot" cx="204" cy="88" r="4"/>
+
+  <rect class="frame" x="24" y="132" width="202" height="116" rx="6"/>
+  <text class="t-title" x="36" y="150">main()</text>
+  <rect class="c-ref" x="36" y="160" width="178" height="32" rx="4"/>
+  <text x="46" y="180">person</text><text class="t-muted" x="96" y="180">참조</text>
+  <circle class="dot" cx="204" cy="176" r="4"/>
+  <rect class="c-field" x="36" y="202" width="178" height="32" rx="4"/>
+  <text x="46" y="222">n = 5</text><text class="t-muted" x="96" y="222">primitive · 값</text>
+
+  <text class="t-muted" x="10" y="282">위 프레임이 지금 실행 중이다.</text>
+  <text class="t-muted" x="10" y="298">p 와 person 은 별개 변수이고</text>
+  <text class="t-muted" x="10" y="314">담긴 주소만 같다.</text>
+
+  <!-- 힙 -->
+  <text class="t-region" x="260" y="20">자바 힙 · 객체마다 크기가 다르다</text>
+  <rect class="region" x="260" y="30" width="520" height="280" rx="8"/>
+
+  <!-- Person -->
+  <text class="t-title" x="280" y="76">Person · instanceOop</text>
+  <rect class="c-mark" x="280" y="84" width="170" height="26"/><text class="t-mark" x="290" y="101">mark word</text>
+  <rect class="c-klass" x="280" y="110" width="170" height="26"/><text class="t-klass" x="290" y="127">klass word</text>
+  <rect class="c-ref" x="280" y="136" width="170" height="26"/><text x="290" y="153">name</text><text class="t-muted" x="332" y="153">참조 → String</text>
+  <rect class="c-field" x="280" y="162" width="170" height="26"/><text x="290" y="179">age = 20</text>
+
+  <!-- int[3] -->
+  <text class="t-title" x="490" y="76">int[3] · arrayOop</text>
+  <rect class="c-mark" x="490" y="84" width="120" height="26"/><text class="t-mark" x="500" y="101">mark word</text>
+  <rect class="c-klass" x="490" y="110" width="120" height="26"/><text class="t-klass" x="500" y="127">klass word</text>
+  <rect class="c-field" x="490" y="136" width="120" height="26"/><text x="500" y="153">length = 3</text>
+  <rect class="c-field" x="490" y="162" width="120" height="26"/><text x="500" y="179">[0] 7</text>
+  <rect class="c-field" x="490" y="188" width="120" height="26"/><text x="500" y="205">[1] 8</text>
+  <rect class="c-field" x="490" y="214" width="120" height="26"/><text x="500" y="231">[2] 9</text>
+
+  <!-- new Object() -->
+  <text class="t-title" x="650" y="76">Object</text>
+  <rect class="c-mark" x="650" y="84" width="80" height="26"/><text class="t-mark" x="658" y="101">mark word</text>
+  <rect class="c-klass" x="650" y="110" width="80" height="26"/><text class="t-klass" x="658" y="127">klass word</text>
+  <text class="t-muted" x="650" y="154">필드 없음,</text>
+  <text class="t-muted" x="650" y="170">헤더만 있다</text>
+
+  <text class="t-muted" x="280" y="272">객체 하나 = 헤더 2워드 + 필드. 필드 크기는 클래스가 정한다.</text>
+  <text class="t-muted" x="280" y="290">배열은 헤더 뒤에 길이 32비트가 더 붙는다.</text>
+
+  <!-- 스택 → 힙 -->
+  <path class="arrow" marker-end="url(#h1)" d="M208 88 C 240 88, 255 101, 277 101"/>
+  <path class="arrow" marker-end="url(#h1)" d="M208 176 C 248 176, 248 101, 277 101"/>
+
+  <!-- 힙 밖 -->
+  <text class="t-region" x="260" y="338">자바 힙 밖 · klass 메타데이터 (객체 헤더 없음)</text>
+  <rect class="region dash" x="260" y="320" width="520" height="120" rx="8"/>
+  <rect class="c-klass" x="280" y="380" width="170" height="46" rx="4"/>
+  <text class="t-title" x="290" y="400">Person 의 klass</text><text class="t-muted" x="290" y="416">필드 배치 · 메서드</text>
+  <rect class="c-klass" x="490" y="380" width="120" height="46" rx="4"/>
+  <text class="t-title" x="500" y="400">int[] 의 klass</text><text class="t-muted" x="500" y="416">원소 타입</text>
+  <rect class="c-klass" x="650" y="380" width="80" height="46" rx="4"/>
+  <text class="t-title" x="658" y="400">Object</text><text class="t-muted" x="658" y="416">klass</text>
+
+  <!-- klass word → klass -->
+  <circle class="dot-k" cx="450" cy="123" r="3.5"/>
+  <path class="arrow-k" marker-end="url(#h2)" d="M450 123 H470 V358 H365 V378"/>
+  <circle class="dot-k" cx="610" cy="123" r="3.5"/>
+  <path class="arrow-k" marker-end="url(#h2)" d="M610 123 H630 V358 H550 V378"/>
+  <circle class="dot-k" cx="730" cy="123" r="3.5"/>
+  <path class="arrow-k" marker-end="url(#h2)" d="M730 123 H752 V358 H690 V378"/>
+
+  <!-- 범례 -->
+  <rect class="c-ref" x="10" y="350" width="22" height="14" rx="3"/><text x="40" y="361">참조 변수 · 주소를 담는다</text>
+  <rect class="c-field" x="10" y="372" width="22" height="14" rx="3"/><text x="40" y="383">값 · primitive, 필드</text>
+  <rect class="c-mark" x="10" y="394" width="22" height="14" rx="3"/><text x="40" y="405">mark word</text>
+  <rect class="c-klass" x="10" y="416" width="22" height="14" rx="3"/><text x="40" y="427">klass word, klass</text>
+</svg>
+</div>
+    <p class="figcap">그림 하나가 힙 전체가 아니다. 힙에는 이런 객체가 크기와 모양을 달리해 계속 쌓인다. 영역 구분(Young, Old, Eden, Survivor)은 객체가 놓이는 위치를 나누는 별개의 개념이다.</p>
+  </section>
+    <section>
+    <h2>핵심 요소</h2>
+    <dl>
+      <dt>oop</dt>
+      <dd>ordinary object pointer. C 언어의 진짜 포인터 역할이다. 참조형 로컬 변수에 저장되어 스택 프레임에서 힙 영역으로 연결된다.</dd>
+      <dt>instanceOop</dt>
+      <dd>자바 클래스의 인스턴스를 표현하는 oop.</dd>
+      <dt>arrayOop</dt>
+      <dd>배열을 표현하는 oop. 두 워드 헤더에 배열 길이 32비트 헤더가 추가된다.</dd>
+      <dt>mark word</dt>
+      <dd>헤더의 첫 번째 워드. 객체 인스턴스별 메타데이터를 가리키는 포인터.</dd>
+      <dt>klass word</dt>
+      <dd>헤더의 두 번째 워드. 클래스 전체의 메타데이터(klass)를 가리키는 포인터.</dd>
+      <dt>klass</dt>
+      <dd>클래스 메타데이터. 자바 힙 주요 부분 밖에 저장되므로 객체 헤더가 필요 없다.</dd>
+    </dl>
+    <p class="note"><b>구분 주의.</b> 소문자 <code>klass</code>는 JVM 수준의 클래스 메타데이터다. <code>Class&lt;?&gt;</code> 객체를 나타내는 instanceOop와는 다르다. 앞글자를 k로 써서 둘을 구분한다.</p>
+  </section>
+    <section>
+    <h2>힙 관리 방식</h2>
+    <ul>
+      <li>핫스팟은 자바 힙을 관리할 때 시스템 호출을 쓰지 않는다. 사용자 공간 코드에서 힙 크기를 직접 관리한다(5장).</li>
+      <li>그래서 간단한 관찰만으로 가비지 컬렉션 하위 시스템이 성능 문제를 일으키는지 확인할 수 있다.</li>
+      <li>자바 힙의 모든 데이터는 객체 헤더를 반드시 포함한다.</li>
+    </ul>
+  </section>
+  </div>
+
+  <div class="panel" role="tabpanel" id="p-klass" aria-labelledby="t-klass">
+    <section>
+    <h2>mark word 와 klass word 의 차이</h2>
+    <p>둘 다 객체 헤더의 한 칸이지만 묻는 질문이 다르다. mark word 는 이 객체가 지금 어떤 상태인지를, klass word 는 이 객체가 무슨 타입인지를 담는다.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>mark word</th><th>klass word</th></tr></thead>
+        <tbody>
+          <tr><td>역할</td><td>이 객체 하나의 상태</td><td>이 객체의 클래스 정보로 가는 포인터</td></tr>
+          <tr><td>내용</td><td>해시코드, GC age, 락 상태 등</td><td>klass 주소</td></tr>
+          <tr><td>객체 간 비교</td><td>객체마다 값이 다르다</td><td>같은 클래스면 모두 같은 값</td></tr>
+          <tr><td>변화</td><td>런타임에 계속 바뀐다. 락이 걸리고 GC 로 age 가 오른다</td><td>바뀌지 않는다. 객체 타입은 고정이다</td></tr>
+          <tr><td>압축 oop</td><td>압축되지 않는다. 네이티브 크기 그대로</td><td>8바이트에서 4바이트로 줄 수 있다</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>같은 클래스의 인스턴스 둘을 나란히 놓으면 차이가 보인다.</p>
+    <pre class="plain"><code>e1: [ mark = 0x...a1 | klass = 0x3f0324a0 | 필드 ... ]
+e2: [ mark = 0x...b7 | klass = 0x3f0324a0 | 필드 ... ]
+        서로 다르다        같다 (Entry 용 klass 공유)</code></pre>
+    <p class="note"><b>출처 구분.</b> 책의 이 페이지는 mark word 를 "인스턴스별 메타데이터"로만 설명한다. 해시코드, GC age, 락 상태가 들어간다는 내용은 핫스팟에 대한 일반 지식이다.</p>
+  </section>
+    <section>
+    <h2>klass 와 Class 객체는 무엇이 다른가</h2>
+    <p>이름이 비슷하지만 서로 다른 것이다. 둘 다 클래스에 관한 정보를 갖고 있지만 담긴 내용과 쓰이는 곳이 다르다.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>klass</th><th>Class 객체</th></tr></thead>
+        <tbody>
+          <tr><td>정체</td><td>JVM 내부의 클래스 메타데이터</td><td>자바 힙에 있는 instanceOop. 자바 코드에서 <code>Class&lt;?&gt;</code> 로 보인다</td></tr>
+          <tr><td>위치</td><td>자바 힙 밖</td><td>자바 힙 안. 그래서 객체 헤더가 있다</td></tr>
+          <tr><td>누가 가리키나</td><td>모든 객체의 klass word</td><td><code>getClass()</code>, <code>Entry.class</code> 로 얻는다</td></tr>
+          <tr><td>담고 있는 것</td><td>가상 함수 테이블(vtable)</td><td>그 외 여러 데이터와 함께, 리플렉션 호출에 쓰는 메서드 객체 배열</td></tr>
+          <tr><td>쓰이는 때</td><td><code>toString()</code> 같은 일반 메서드 호출</td><td><code>getMethod()</code> 같은 리플렉션 호출</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>그림 4-2에서 <code>Entry</code> 인스턴스의 klass word 는 Entry 용 klass 를 가리킨다. <code>Entry.class</code> 는 그 자체로 하나의 객체여서 klass word 가 있고, 이쪽은 Class 용 klass 를 가리킨다.</p>
+    <div class="figure"><svg viewBox="0 0 800 420" role="img" aria-label="Entry 인스턴스와 Entry.class 객체가 각각 다른 klass 를 가리키고, klass 의 vtable 과 Class 객체의 메서드 배열이 용도가 다름을 보여주는 그림"><defs><marker id="k1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="head-k" d="M0 0 L10 5 L0 10 z"/></marker><marker id="k2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="head" d="M0 0 L10 5 L0 10 z"/></marker></defs><text class="t-region" x="10" y="16">자바 힙 · 자바 객체</text><rect class="region" x="10" y="24" width="780" height="190" rx="8"/><text class="t-title" x="30" y="54">Entry 인스턴스</text><text class="t-muted" x="30" y="70">instanceOop</text><rect class="c-mark" x="30" y="82" width="90" height="30"/><text class="t-mark" x="75.0" y="101.0" text-anchor="middle">mark word</text><rect class="c-klass" x="120" y="82" width="90" height="30"/><text class="t-klass" x="165.0" y="101.0" text-anchor="middle">klass word</text><rect class="c-field" x="210" y="82" width="90" height="30"/><text class="" x="255.0" y="101.0" text-anchor="middle">hash, key …</text><text class="t-title" x="400" y="54">Entry.class · Class 객체</text><text class="t-muted" x="400" y="70">instanceOop · getClass() 로 얻는다</text><rect class="c-mark" x="400" y="82" width="90" height="30"/><text class="t-mark" x="445.0" y="101.0" text-anchor="middle">mark word</text><rect class="c-klass" x="490" y="82" width="90" height="30"/><text class="t-klass" x="535.0" y="101.0" text-anchor="middle">klass word</text><rect class="c-field" x="580" y="82" width="90" height="30"/><text class="" x="625.0" y="101.0" text-anchor="middle">Class 필드</text><text class="t-title" x="560" y="146">메서드 객체 배열</text><text class="t-muted" x="560" y="162">리플렉션 호출용</text><rect class="c-ref" x="560" y="170" width="50" height="30"/><text class="" x="585.0" y="189.0" text-anchor="middle">M0</text><rect class="c-ref" x="610" y="170" width="50" height="30"/><text class="" x="635.0" y="189.0" text-anchor="middle">M1</text><rect class="c-ref" x="660" y="170" width="50" height="30"/><text class="" x="685.0" y="189.0" text-anchor="middle">M2</text><rect class="c-ref" x="710" y="170" width="50" height="30"/><text class="" x="735.0" y="189.0" text-anchor="middle">M3</text><path class="arrow" marker-end="url(#k2)" d="M625 112 V140 H585 V168"/><text class="t-region" x="10" y="246">자바 힙 밖 · klass</text><rect class="region dash" x="10" y="254" width="780" height="156" rx="8"/><text class="t-title" x="30" y="284">klass (Entry 용)</text><text class="t-muted" x="140" y="284">vtable 로 가상 메서드 호출</text><rect class="c-vt" x="30" y="300" width="46" height="30"/><text class="" x="53.0" y="319.0" text-anchor="middle"></text><rect class="c-vt" x="76" y="300" width="46" height="30"/><text class="" x="99.0" y="319.0" text-anchor="middle"></text><rect class="c-vt" x="122" y="300" width="46" height="30"/><text class="" x="145.0" y="319.0" text-anchor="middle"></text><rect class="c-vt" x="168" y="300" width="46" height="30"/><text class="" x="191.0" y="319.0" text-anchor="middle"></text><rect class="c-vt-hot" x="214" y="300" width="46" height="30"/><text class="" x="237.0" y="319.0" text-anchor="middle"></text><rect class="c-vt" x="260" y="300" width="46" height="30"/><text class="" x="283.0" y="319.0" text-anchor="middle"></text><text class="t-title" x="30" y="354">vtable</text><text class="mono" x="30" y="374" style="fill:var(--warm)">toString()</text><text class="t-muted" x="150" y="374">← 칸 하나가 메서드 하나를 가리킨다</text><text class="t-title" x="400" y="284">klass (Class 용)</text><text class="t-muted" x="510" y="284">Class 객체 자신의 klass</text><rect class="c-vt" x="400" y="300" width="46" height="30"/><text class="" x="423.0" y="319.0" text-anchor="middle"></text><rect class="c-vt" x="446" y="300" width="46" height="30"/><text class="" x="469.0" y="319.0" text-anchor="middle"></text><rect class="c-vt" x="492" y="300" width="46" height="30"/><text class="" x="515.0" y="319.0" text-anchor="middle"></text><rect class="c-vt" x="538" y="300" width="46" height="30"/><text class="" x="561.0" y="319.0" text-anchor="middle"></text><rect class="c-vt" x="584" y="300" width="46" height="30"/><text class="" x="607.0" y="319.0" text-anchor="middle"></text><rect class="c-vt" x="630" y="300" width="46" height="30"/><text class="" x="653.0" y="319.0" text-anchor="middle"></text><rect class="c-vt-hot" x="676" y="300" width="46" height="30"/><text class="" x="699.0" y="319.0" text-anchor="middle"></text><rect class="c-vt" x="722" y="300" width="46" height="30"/><text class="" x="745.0" y="319.0" text-anchor="middle"></text><text class="t-title" x="400" y="354">vtable</text><text class="mono" x="400" y="374" style="fill:var(--warm)">getMethod()</text><circle class="dot-k" cx="165" cy="97" r="3.5"/><path class="arrow-k" marker-end="url(#k1)" d="M165 97 V298"/><circle class="dot-k" cx="535" cy="97" r="3.5"/><path class="arrow-k" marker-end="url(#k1)" d="M535 97 V298"/></svg></div>
+    <p class="figcap">그림 4-2. Klass 와 Class 객체. 이 주제는 6장에서 JIT 컴파일을 다룰 때 더 자세히 나온다.</p>
+  </section>
+  </div>
+
+  <div class="panel" role="tabpanel" id="p-oops" aria-labelledby="t-oops">
+    <section>
+    <h2>압축 oop</h2>
+    <p>oop 는 머신 워드 크기를 따른다. 구형 32비트 머신에서는 32비트, 현대 프로세서에서는 64비트다. 64비트에서는 상당한 메모리가 낭비될 수 있어서 핫스팟이 <b>압축 oop</b> 를 제공한다.</p>
+    <p><code>-XX:+UseCompressedOops</code> 옵션으로 켠다. 64비트 힙에서는 기본으로 켜져 있다. 켜면 아래 세 가지가 압축된다.</p>
+    <ul>
+      <li>힙에 있는 모든 객체의 klass 워드</li>
+      <li>참조 타입의 인스턴스 필드</li>
+      <li>객체 배열의 각 요소</li>
+    </ul>
+    <h3>핫스팟 객체 헤더 구성</h3>
+    <ul>
+      <li>네이티브 크기의 마크 워드</li>
+      <li>klass 워드 (압축될 수 있다)</li>
+      <li>객체가 배열이면 길이를 나타내는 32비트 값</li>
+      <li>정렬 규칙에 필요하면 32비트 간격</li>
+      <li>헤더 바로 뒤에 객체의 인스턴스 필드</li>
+    </ul>
+    <div class="figure"><svg viewBox="0 0 800 320" role="img" aria-label="32비트 힙, 64비트 힙, 압축 oop 에서 헤더의 mark 워드와 klass 워드 크기 비교. 칸 너비가 바이트 수에 비례한다"><text class="t-region" x="10" y="16">칸 너비 = 바이트 수에 비례</text><text class="t-title" x="10" y="62">32비트 힙</text><text class="t-muted mono" x="10" y="80" style="font-size:10px">oop 0x21a3c214</text><rect class="c-mark" x="200" y="44" width="72" height="36"/><text class="mono" x="236.0" y="66" text-anchor="middle" style="font-size:10px">0x3f0324a0</text><text class="t-muted" x="236.0" y="96" text-anchor="middle" style="font-size:10px">4B</text><rect class="c-klass" x="272" y="44" width="72" height="36"/><text class="mono" x="308.0" y="66" text-anchor="middle" style="font-size:10px">0x3f0324a0</text><text class="t-muted" x="308.0" y="96" text-anchor="middle" style="font-size:10px">4B</text><rect class="c-field" x="344" y="44" width="72" height="36"/><text class="mono" x="380.0" y="66" text-anchor="middle" style="font-size:10px">42</text><text class="t-muted" x="380.0" y="96" text-anchor="middle" style="font-size:10px">4B</text><text class="t-title" x="430" y="66">12B</text><text class="t-title" x="10" y="146">64비트 힙</text><text class="t-muted mono" x="10" y="164" style="font-size:10px">oop 0x00000017e022c310</text><rect class="c-mark" x="200" y="128" width="144" height="36"/><text class="mono" x="272.0" y="150" text-anchor="middle" style="font-size:10px">0x00000000129a0266</text><text class="t-muted" x="272.0" y="180" text-anchor="middle" style="font-size:10px">8B</text><rect class="c-klass" x="344" y="128" width="144" height="36"/><text class="mono" x="416.0" y="150" text-anchor="middle" style="font-size:10px">0x00000003f0324a0</text><text class="t-muted" x="416.0" y="180" text-anchor="middle" style="font-size:10px">8B</text><rect class="c-field" x="488" y="128" width="72" height="36"/><text class="mono" x="524.0" y="150" text-anchor="middle" style="font-size:10px">42</text><text class="t-muted" x="524.0" y="180" text-anchor="middle" style="font-size:10px">4B</text><text class="t-title" x="574" y="150">20B</text><text class="t-title" x="10" y="230">압축 oop</text><text class="t-muted mono" x="10" y="248" style="font-size:10px">oop 0x000000037e2190a2</text><rect class="c-mark" x="200" y="212" width="144" height="36"/><text class="mono" x="272.0" y="234" text-anchor="middle" style="font-size:10px">0x000000010f3112c7</text><text class="t-muted" x="272.0" y="264" text-anchor="middle" style="font-size:10px">8B</text><rect class="c-klass" x="344" y="212" width="72" height="36"/><text class="mono" x="380.0" y="234" text-anchor="middle" style="font-size:10px">0x3f0324a0</text><text class="t-muted" x="380.0" y="264" text-anchor="middle" style="font-size:10px">4B</text><rect class="c-field" x="416" y="212" width="72" height="36"/><text class="mono" x="452.0" y="234" text-anchor="middle" style="font-size:10px">42</text><text class="t-muted" x="452.0" y="264" text-anchor="middle" style="font-size:10px">4B</text><text class="t-title" x="502" y="234">16B</text><rect class="c-mark" x="10" y="296" width="18" height="12" rx="2"/><text x="34" y="306">마크 워드</text><rect class="c-klass" x="110" y="296" width="18" height="12" rx="2"/><text x="134" y="306">klass 워드</text><rect class="c-field" x="220" y="296" width="18" height="12" rx="2"/><text x="244" y="306">int 필드 (값 42)</text></svg></div>
+    <p class="figcap">그림 4-3. 압축 oop. 64비트 힙에서 klass 워드가 8바이트에서 4바이트로 줄어든다. 세 칸 합계는 그림 속 칸만 더한 값이다.</p>
+    <p class="note"><b>켜 두는 편이 낫다.</b> 지연에 매우 민감한 애플리케이션에서 압축 oop 를 끄면 성능이 좋아지는 경우가 가끔 있었다. 하지만 힙 크기가 10%에서 50%까지 늘어나는 대가를 치러야 했고, 측정 가능한 이점을 얻는 애플리케이션은 매우 적다. 이런 식으로 스위치를 만지작거리는 일은 안티패턴의 대표적인 예다(부록 B).</p>
+  </section>
+  </div>
+
+  <div class="panel" role="tabpanel" id="p-weak" aria-labelledby="t-weak">
+  <section>
+    <h2>GC 설계에서 보는 두 가지</h2>
+    <p>가비지 컬렉터를 설계할 때 따지는 핵심 요소는 둘이다.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>할당 속도</th><th>객체의 수명 주기</th></tr></thead>
+        <tbody>
+          <tr><td>뜻</td><td>일정 시간 동안 새로 생성된 객체가 쓰는 메모리의 양. 보통 MB/s</td><td>객체가 생성되어 얼마나 오래 살아 있는가</td></tr>
+          <tr><td>측정</td><td>JVM 이 기본으로 보여주지 않지만 비교적 쉽게 추정할 수 있다. JFR 같은 도구가 제공한다</td><td>측정하거나 추정하기가 훨씬 어렵다</td></tr>
+          <tr><td>비중</td><td>사용하는 데 성능 영향이 있을 수 있다</td><td>할당 속도보다 훨씬 더 근본적인 요소다</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>실제 애플리케이션에서 객체의 수명 주기를 제대로 이해하기는 매우 복잡하다. 수동 메모리 관리를 반대하는 이유이기도 하다.</p>
+    <p class="note"><b>GC 의 핵심.</b> 가비지 컬렉션은 메모리 회수이면서 재사용이다. 객체의 수명이 짧기 때문에 같은 물리 메모리를 반복해서 쓸 수 있다. 이 개념이 없다면 가비지 컬렉션은 전혀 작동하지 않을 것이다. 가비지 컬렉터는 다양한 트레이드오프를 균형 있게 조정해야 하고, 그 결정은 객체의 수명 주기와 속도에 달려 있다(5장).</p>
+  </section>
+
+  <section>
+    <h2>약한 세대 가설</h2>
+    <p>자바 가상 머신 메모리 관리의 중요한 부분은 소프트웨어 시스템의 런타임에서 관찰되는 약한 세대 가설을 기반으로 한다.</p>
+    <p>이 가설에 따르면 자바 가상 머신과 유사한 소프트웨어 시스템에서 객체의 수명 분포는 <b>이중 분포(bimodal)</b> 를 나타낸다. 대부분의 객체는 수명이 매우 짧고, 일부 객체는 훨씬 더 길게 산다.</p>
+    <div class="figure"><svg viewBox="0 0 800 300" role="img" aria-label="수명 주기에 따른 관련 메모리 분포. 수명이 짧은 쪽에 큰 봉우리, 수명이 긴 쪽에 작은 봉우리가 있는 이중 분포"><defs><marker id="ax" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path class="head" d="M0 0 L10 5 L0 10 z"/></marker></defs><path class="axis" marker-end="url(#ax)" d="M70 250 V20"/><path class="axis" marker-end="url(#ax)" d="M70 250 H640"/><text class="t-muted" x="62" y="120" text-anchor="end">관련된</text><text class="t-muted" x="62" y="136" text-anchor="end">메모리</text><text class="t-muted" x="355" y="274" text-anchor="middle">수명 주기</text><path class="curve" d="M70 250 C 90 250, 105 40, 140 40 C 175 40, 185 244, 250 247 C 320 250, 400 246, 440 225 C 460 214, 475 214, 490 225 C 510 242, 560 247, 620 248"/><text class="t-title" x="190" y="60">대부분의 객체</text><text class="t-muted" x="190" y="78">수명이 매우 짧다</text><text class="t-title" x="420" y="180">일부 객체</text><text class="t-muted" x="420" y="198">훨씬 오래 산다</text></svg></div>
+    <p class="figcap">그림 4-4. 약한 세대 가설. 세로축은 관련된 메모리, 가로축은 수명 주기.</p>
+    <p>객체 지향 워크로드의 동작을 실험적으로 검증한 결과이며, 결론은 명확하다.</p>
+    <ul>
+      <li>GC 힙은 수명이 짧은 객체를 쉽고 빠르게 수집할 수 있도록 구조화되어야 한다.</li>
+      <li>수명이 긴 객체는 짧은 객체와 분리되어야 한다.</li>
+    </ul>
+    <p>이는 힙이 두 개의 별도 영역, 곧 짧은 수명의 영역과 긴 수명의 영역을 가져야 한다는 뜻이다. 두 영역은 각각 <b>젊은 세대 컬렉션</b> 과 <b>전체 컬렉션</b> 에서 따로 수집된다.</p>
+  </section>
+
+    <section>
+    <h2>왜 "약한" 가설인가</h2>
+    <p>영어 원문은 <i>weak generational hypothesis</i> 다. 주장하는 범위가 좁아서 "약한"이 붙었고, 짝이 되는 <i>strong</i> 가설이 따로 있다.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>약한(weak)</th><th>강한(strong)</th></tr></thead>
+        <tbody>
+          <tr><td>주장</td><td>대부분의 객체는 젊어서 죽는다</td><td>객체는 나이를 먹을수록 죽을 확률이 계속 줄어든다</td></tr>
+          <tr><td>범위</td><td>젊은 객체만 말한다</td><td>나이와 생존율의 관계까지 말한다</td></tr>
+          <tr><td>현실</td><td>거의 모든 워크로드에서 성립한다</td><td>맞지 않는 경우가 많다</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul>
+      <li>강한 가설은 약한 가설의 반대가 아니라 확장판이다. 강한 가설이 참이면 약한 가설도 참이다.</li>
+      <li>"약한"은 근거가 약하다는 뜻이 아니다. 오히려 가장 널리 확인된 가설이다.</li>
+      <li>세대별 GC 에 필요한 것은 "에덴을 자주 청소하면 대부분 죽은 객체라 싸다"는 사실 하나다. 약한 가설만으로 충분하다.</li>
+    </ul>
+    <p class="note"><b>출처 구분.</b> weak 와 strong 의 구분은 책 이 페이지가 아니라 GC 문헌의 일반 지식이다. 책에는 "약한 세대 가설"이라는 이름만 나온다.</p>
+  </section>
+
+  <section>
+    <h2>에덴에서의 수집</h2>
+    <p>주요 기술 하나는 최근 생성된 객체가 있는 영역(보통 <b>에덴</b>)에 마크 앤 스윕 컬렉션을 쓰는 것이다. 스윕 단계에서 컬렉터는 <b>대피(evacuation)</b> 단계를 거쳐 생존한 객체를 긴 수명의 공간으로 옮긴다. 그다음 에덴 공간 전체를 한 번에 회수한다.</p>
+    <div class="figure"><svg viewBox="0 0 800 330" role="img" aria-label="스택의 루트에서 젊은 세대의 생존 객체를 찾고, 생존 객체를 영구 세대로 대피시킨 뒤 젊은 세대를 비우는 단순 세대별 힙 그림"><defs><marker id="g1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="head" d="M0 0 L10 5 L0 10 z"/></marker><marker id="g2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="head-k" d="M0 0 L10 5 L0 10 z"/></marker></defs><text class="t-region" x="20" y="22">스택</text><rect class="frame" x="20" y="32" width="110" height="170" rx="6"/><rect class="c-field" x="32" y="44" width="86" height="26" rx="3"/><circle class="dot" cx="48" cy="57" r="5"/><rect class="c-field" x="32" y="76" width="86" height="26" rx="3"/><circle class="dot" cx="48" cy="89" r="5"/><rect class="c-field" x="32" y="108" width="86" height="26" rx="3"/><circle class="dot" cx="48" cy="121" r="5"/><rect class="c-field" x="32" y="140" width="86" height="26" rx="3"/><circle class="dot" cx="48" cy="153" r="5"/><rect class="c-field" x="32" y="172" width="86" height="26" rx="3"/><circle class="dot" cx="48" cy="185" r="5"/><text class="t-muted" x="20" y="224">GC 루트</text><text class="t-muted" x="20" y="240">여기서 도달하면 생존</text><path class="arrow" marker-end="url(#g1)" d="M130 117 H250"/><text class="t-region" x="260" y="22">젊은 세대 · 에덴</text><rect class="c-field" x="260" y="32" width="60" height="40"/><text class="t-muted" x="290.0" y="57" text-anchor="middle">×</text><rect class="c-field" x="320" y="32" width="60" height="40"/><text class="t-muted" x="350.0" y="57" text-anchor="middle">×</text><rect class="c-field" x="380" y="32" width="60" height="40"/><text class="t-muted" x="410.0" y="57" text-anchor="middle">×</text><rect class="c-field" x="440" y="32" width="60" height="40"/><text class="t-muted" x="470.0" y="57" text-anchor="middle">×</text><rect class="c-live" x="260" y="72" width="60" height="40"/><text class="t-live" x="290.0" y="97" text-anchor="middle">Y</text><rect class="c-field" x="320" y="72" width="60" height="40"/><text class="t-muted" x="350.0" y="97" text-anchor="middle">×</text><rect class="c-field" x="380" y="72" width="60" height="40"/><text class="t-muted" x="410.0" y="97" text-anchor="middle">×</text><rect class="c-live" x="440" y="72" width="60" height="40"/><text class="t-live" x="470.0" y="97" text-anchor="middle">Y</text><rect class="c-field" x="260" y="112" width="60" height="40"/><text class="t-muted" x="290.0" y="137" text-anchor="middle">×</text><rect class="c-field" x="320" y="112" width="60" height="40"/><text class="t-muted" x="350.0" y="137" text-anchor="middle">×</text><rect class="c-field" x="380" y="112" width="60" height="40"/><text class="t-muted" x="410.0" y="137" text-anchor="middle">×</text><rect class="c-field" x="440" y="112" width="60" height="40"/><text class="t-muted" x="470.0" y="137" text-anchor="middle">×</text><rect class="c-field" x="260" y="152" width="60" height="40"/><text class="t-muted" x="290.0" y="177" text-anchor="middle">×</text><rect class="c-live" x="320" y="152" width="60" height="40"/><text class="t-live" x="350.0" y="177" text-anchor="middle">Y</text><rect class="c-field" x="380" y="152" width="60" height="40"/><text class="t-muted" x="410.0" y="177" text-anchor="middle">×</text><rect class="c-field" x="440" y="152" width="60" height="40"/><text class="t-muted" x="470.0" y="177" text-anchor="middle">×</text><rect class="c-field" x="260" y="192" width="60" height="40"/><text class="t-muted" x="290.0" y="217" text-anchor="middle">×</text><rect class="c-field" x="320" y="192" width="60" height="40"/><text class="t-muted" x="350.0" y="217" text-anchor="middle">×</text><rect class="c-live" x="380" y="192" width="60" height="40"/><text class="t-live" x="410.0" y="217" text-anchor="middle">Y</text><rect class="c-field" x="440" y="192" width="60" height="40"/><text class="t-muted" x="470.0" y="217" text-anchor="middle">×</text><text class="t-region" x="600" y="22">영구 세대</text><rect class="c-klass" x="600" y="32" width="60" height="40"/><text class="t-klass" x="630.0" y="57" text-anchor="middle">T</text><rect class="c-field" x="660" y="32" width="60" height="40"/><rect class="c-klass" x="720" y="32" width="60" height="40"/><text class="t-klass" x="750.0" y="57" text-anchor="middle">T</text><rect class="c-klass" x="600" y="72" width="60" height="40"/><text class="t-klass" x="630.0" y="97" text-anchor="middle">T</text><rect class="c-field" x="660" y="72" width="60" height="40"/><rect class="c-klass" x="720" y="72" width="60" height="40"/><text class="t-klass" x="750.0" y="97" text-anchor="middle">T</text><rect class="c-field" x="600" y="112" width="60" height="40"/><rect class="c-klass" x="660" y="112" width="60" height="40"/><text class="t-klass" x="690.0" y="137" text-anchor="middle">T</text><rect class="c-field" x="720" y="112" width="60" height="40"/><rect class="c-new dash" x="600" y="152" width="60" height="40"/><text class="t-klass" x="630.0" y="177" text-anchor="middle">Y→T</text><rect class="c-field" x="660" y="152" width="60" height="40"/><rect class="c-field" x="720" y="152" width="60" height="40"/><rect class="c-field" x="600" y="192" width="60" height="40"/><rect class="c-field" x="660" y="192" width="60" height="40"/><rect class="c-field" x="720" y="192" width="60" height="40"/><path class="arrow-k dash" marker-end="url(#g2)" d="M500 52 H560 V172 H598"/><text class="t-title" x="520" y="270" style="fill:var(--warm)">대피 (evacuation)</text><text class="t-muted" x="520" y="288">생존한 Y 를 긴 수명의 공간으로 옮긴다</text><text class="t-muted" x="260" y="270">그다음 에덴 전체를</text><text class="t-muted" x="260" y="288">한 번에 회수한다</text><rect class="c-live" x="20" y="268" width="18" height="12" rx="2"/><text x="44" y="278">Y 생존</text><rect class="c-field" x="20" y="288" width="18" height="12" rx="2"/><text x="44" y="298">× 죽은 객체</text><rect class="c-klass" x="20" y="308" width="18" height="12" rx="2"/><text x="44" y="318">T 오래 산 객체</text></svg></div>
+    <p class="figcap">그림 4-5. 단순 세대별 힙. 스택에서 닿는 객체(Y)만 살아남아 영구 세대로 옮겨진다. 이 그림은 개념도이고 칸 위치에는 의미가 없다.</p>
+    <p class="note"><b>앞에서 헷갈린 지점.</b> 책의 "마크 앤 스윕 + 대피" 는 이전에 구분한 Mark 와 Copying 이 합쳐진 설명이다. 살아 있는지 표시하고(Mark), 산 것만 다른 곳으로 옮기고(복사), 원래 영역은 통째로 비운다.</p>
+    <p class="note"><b>용어 주의.</b> 그림의 "영구 세대" 는 오래 산 객체가 가는 영역이라는 뜻이다. 일반적으로는 Old 또는 Tenured 영역이라고 부른다. 자바 8 이전의 PermGen(클래스 메타데이터를 두던 영역)과는 다른 개념이다. 이 구분은 책 이 페이지가 아니라 일반 지식이다.</p>
+  </section>
+  <section>
+    <h2>세대별 힙의 장점: 죽은 객체를 치우는 비용이 없다</h2>
+    <p>세대별 힙의 주된 이점 하나는 <b>죽은 객체를 수집하는 데 비용이 전혀 들지 않는다</b>는 점이다. 죽은 객체에 대한 기록은 필요하지 않고, 관심의 대상은 오직 활성 객체뿐이다.</p>
+    <h3>왜 비용이 들지 않는가</h3>
+    <p>앞서 본 에덴 수집은 세 단계다. 루트에서 닿는 살아있는 객체만 따라가고, 그것을 오래 사는 영역으로 대피시키고, 에덴 전체를 한 번에 회수한다. 마지막 단계에서 죽은 객체를 하나씩 찾아 해제하지 않는다. 영역을 통째로 비우면 그 안의 죽은 객체는 방문도 기록도 없이 함께 사라진다.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>세대 구분 없는 Mark-Sweep</th><th>젊은 세대 대피</th></tr></thead>
+        <tbody>
+          <tr><td>훑는 범위</td><td>힙 전체</td><td>살아있는 객체만</td></tr>
+          <tr><td>죽은 객체</td><td>Sweep 이 하나씩 찾아 해제한다</td><td>방문하지 않고 영역째 회수한다</td></tr>
+          <tr><td>산 객체</td><td>제자리에 둔다</td><td>따라가며 복사한다</td></tr>
+          <tr><td>비용이 따라가는 것</td><td>표시는 산 객체 수, 해제는 힙 크기</td><td>살아있는 객체 수</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="figure"><svg viewBox="0 0 800 250" role="img" aria-label="세대 구분 없는 Mark-Sweep 은 모든 칸을 훑으며 죽은 객체를 하나씩 해제하고, 젊은 세대 대피는 살아있는 객체만 오래 사는 영역으로 옮기고 에덴을 통째로 비운다는 비교 그림"><defs><marker id="v1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="head" d="M0 0 L10 5 L0 10 z"/></marker></defs><text class="t-title" x="20" y="20">세대 구분 없이 Mark-Sweep</text><rect class="c-field" x="20" y="30" width="44" height="36"/><text class="t-muted" x="42" y="53" text-anchor="middle">×</text><rect class="visit" x="20" y="70" width="44" height="4"/><rect class="c-live" x="64" y="30" width="44" height="36"/><text class="t-live" x="86" y="53" text-anchor="middle">Y</text><rect class="visit" x="64" y="70" width="44" height="4"/><rect class="c-field" x="108" y="30" width="44" height="36"/><text class="t-muted" x="130" y="53" text-anchor="middle">×</text><rect class="visit" x="108" y="70" width="44" height="4"/><rect class="c-field" x="152" y="30" width="44" height="36"/><text class="t-muted" x="174" y="53" text-anchor="middle">×</text><rect class="visit" x="152" y="70" width="44" height="4"/><rect class="c-field" x="196" y="30" width="44" height="36"/><text class="t-muted" x="218" y="53" text-anchor="middle">×</text><rect class="visit" x="196" y="70" width="44" height="4"/><rect class="c-live" x="240" y="30" width="44" height="36"/><text class="t-live" x="262" y="53" text-anchor="middle">Y</text><rect class="visit" x="240" y="70" width="44" height="4"/><rect class="c-field" x="284" y="30" width="44" height="36"/><text class="t-muted" x="306" y="53" text-anchor="middle">×</text><rect class="visit" x="284" y="70" width="44" height="4"/><rect class="c-field" x="328" y="30" width="44" height="36"/><text class="t-muted" x="350" y="53" text-anchor="middle">×</text><rect class="visit" x="328" y="70" width="44" height="4"/><rect class="c-field" x="372" y="30" width="44" height="36"/><text class="t-muted" x="394" y="53" text-anchor="middle">×</text><rect class="visit" x="372" y="70" width="44" height="4"/><rect class="c-live" x="416" y="30" width="44" height="36"/><text class="t-live" x="438" y="53" text-anchor="middle">Y</text><rect class="visit" x="416" y="70" width="44" height="4"/><rect class="c-field" x="460" y="30" width="44" height="36"/><text class="t-muted" x="482" y="53" text-anchor="middle">×</text><rect class="visit" x="460" y="70" width="44" height="4"/><rect class="c-field" x="504" y="30" width="44" height="36"/><text class="t-muted" x="526" y="53" text-anchor="middle">×</text><rect class="visit" x="504" y="70" width="44" height="4"/><text class="t-muted" x="20" y="92">Sweep 이 모든 칸을 방문해 죽은 객체(×)를 하나씩 찾아 해제한다.</text><text class="t-title" x="20" y="110" style="fill:var(--warm)">비용 = 죽은 객체까지 포함한 힙 전체</text><text class="t-title" x="20" y="140">젊은 세대 대피</text><rect class="c-field" x="20" y="150" width="44" height="36"/><text class="t-muted" x="42" y="173" text-anchor="middle">×</text><rect class="c-live" x="64" y="150" width="44" height="36"/><text class="t-live" x="86" y="173" text-anchor="middle">Y</text><rect class="visit" x="64" y="190" width="44" height="4"/><rect class="c-field" x="108" y="150" width="44" height="36"/><text class="t-muted" x="130" y="173" text-anchor="middle">×</text><rect class="c-field" x="152" y="150" width="44" height="36"/><text class="t-muted" x="174" y="173" text-anchor="middle">×</text><rect class="c-field" x="196" y="150" width="44" height="36"/><text class="t-muted" x="218" y="173" text-anchor="middle">×</text><rect class="c-live" x="240" y="150" width="44" height="36"/><text class="t-live" x="262" y="173" text-anchor="middle">Y</text><rect class="visit" x="240" y="190" width="44" height="4"/><rect class="c-field" x="284" y="150" width="44" height="36"/><text class="t-muted" x="306" y="173" text-anchor="middle">×</text><rect class="c-field" x="328" y="150" width="44" height="36"/><text class="t-muted" x="350" y="173" text-anchor="middle">×</text><rect class="c-field" x="372" y="150" width="44" height="36"/><text class="t-muted" x="394" y="173" text-anchor="middle">×</text><rect class="c-live" x="416" y="150" width="44" height="36"/><text class="t-live" x="438" y="173" text-anchor="middle">Y</text><rect class="visit" x="416" y="190" width="44" height="4"/><rect class="c-field" x="460" y="150" width="44" height="36"/><text class="t-muted" x="482" y="173" text-anchor="middle">×</text><rect class="c-field" x="504" y="150" width="44" height="36"/><text class="t-muted" x="526" y="173" text-anchor="middle">×</text><text class="t-muted" x="20" y="212">산 객체(Y)만 따라가 옮기고, 에덴은 통째로 비운다. 죽은 칸은 방문하지 않는다.</text><text class="t-title" x="20" y="230" style="fill:var(--accent)">비용 = 살아있는 객체 수</text><path class="arrow" marker-end="url(#v1)" d="M552 168 H606"/><text class="t-region" x="606" y="150">오래 사는 영역</text><rect class="c-klass" x="606" y="158" width="56" height="36"/><text class="t-klass" x="634" y="181" text-anchor="middle">T</text><rect class="c-klass" x="662" y="158" width="56" height="36"/><text class="t-klass" x="690" y="181" text-anchor="middle">T</text><rect class="c-klass" x="718" y="158" width="56" height="36"/><text class="t-klass" x="746" y="181" text-anchor="middle">T</text></svg></div>
+    <p class="figcap">두 줄 모두 같은 12칸이다. 밑줄은 GC 가 방문한 칸이다. 위쪽은 12칸 모두, 아래쪽은 산 객체 3칸뿐이다.</p>
+    <h3>왜 세대별 힙이어야 하는가</h3>
+    <ul>
+      <li>약한 세대 가설에 따라 에덴은 대부분 죽은 객체이고 살아있는 객체는 소수다.</li>
+      <li>소수만 복사하면 되니 대피 방식이 에덴에서 싸게 먹힌다.</li>
+      <li>세대 구분이 없어서 힙이 한 덩어리라면 오래 사는 객체까지 매번 복사하거나 전체를 훑어야 해서 이 방식이 이득이 되지 않는다.</li>
+      <li>그래서 힙을 나눠 "대부분 죽는 영역"을 따로 만들어야 "죽은 것은 건드리지 않고 통째로 비운다"는 방식을 쓸 수 있다.</li>
+    </ul>
+    <p class="note"><b>해석 주의.</b> "전혀 안 든다"는 죽은 객체를 개별로 처리하지 않는다는 뜻이다. 살아있는 객체를 따라가고 복사하는 비용은 그대로 든다. 이 풀이는 책 문장에 설명을 보탠 것이다.</p>
+    <p>핫스팟은 약한 세대 가설을 활용하고 세대별 힙의 구조를 개선하려고 이 밖에도 여러 메커니즘을 쓴다. 그중 두 가지는 "GC 기술" 탭에서 본다(4.6).</p>
+  </section>
+
+
+  </div>
+
+  <div class="panel" role="tabpanel" id="p-gc" aria-labelledby="t-gc">
+  <section>
+    <h2>핫스팟의 프로덕션 GC 기술 (4.6)</h2>
+    <p>지금까지 배운 내용을 바탕으로, 핫스팟에서 가장 단순한 형태의 프로덕션 가비지 컬렉터가 어떻게 작동하는지 이해하는 데 도움이 되는 기술을 본다. 먼저 할당 성능을 높이는 기술, 그다음 젊은 세대를 수집하는 방식이다.</p>
+  </section>
+
+  <section>
+    <h2>스레드-로컬 할당 버퍼 (4.6.1)</h2>
+    <p>에덴은 대부분의 객체가 생성되는 영역이고, 수명이 매우 짧은 객체가 있는 곳이다. 다음 GC 사이클이 돌기 전에 살아남지 못하는 객체는 이 영역을 벗어나지 않는다. 약한 세대 가설에 따르면 이 영역의 많은 객체를 추가 비용 없이 수집할 수 있으므로 에덴을 효율적으로 관리하는 것이 중요하다.</p>
+    <p>할당 효율을 높이려고 핫스팟은 <b>에덴을 여러 버퍼로 나누고, 애플리케이션 스레드마다 독립된 에덴 영역을 할당</b>해 새 객체를 만들게 한다. 각 스레드가 자기 버퍼에서만 작업하므로 다른 스레드가 같은 버퍼에서 할당하는 것을 걱정할 필요가 없다. 이 영역을 <b>스레드-로컬 할당 버퍼(thread-local allocation buffer, TLAB)</b> 라고 한다.</p>
+    <div class="figure"><svg viewBox="0 0 800 300" role="img" aria-label="에덴이 스레드별 TLAB 로 나뉘고, 각 스레드가 자기 TLAB 안에서 다음 사용 가능 포인터를 앞으로 옮기며 객체를 할당하는 그림"><defs><marker id="t1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="head" d="M0 0 L10 5 L0 10 z"/></marker><marker id="t2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="head-k" d="M0 0 L10 5 L0 10 z"/></marker></defs><text class="t-region" x="10" y="20">젊은 세대 · 에덴</text><rect class="region" x="10" y="30" width="780" height="130" rx="8"/><text class="t-title" x="30" y="52">TLAB · 스레드 A</text><rect class="c-live" x="30" y="62" width="44" height="40"/><text class="t-live" x="52.0" y="87" text-anchor="middle">obj</text><rect class="c-live" x="74" y="62" width="44" height="40"/><text class="t-live" x="96.0" y="87" text-anchor="middle">obj</text><rect class="c-live" x="118" y="62" width="44" height="40"/><text class="t-live" x="140.0" y="87" text-anchor="middle">obj</text><rect class="c-field" x="162" y="62" width="44" height="40"/><rect class="c-field" x="206" y="62" width="44" height="40"/><path class="arrow-k" marker-end="url(#t2)" d="M162 124 V106"/><text class="t-klass" x="162" y="140" text-anchor="middle">다음 할당 위치</text><text class="t-title" x="270" y="52">TLAB · 스레드 B</text><rect class="c-live" x="270" y="62" width="44" height="40"/><text class="t-live" x="292.0" y="87" text-anchor="middle">obj</text><rect class="c-live" x="314" y="62" width="44" height="40"/><text class="t-live" x="336.0" y="87" text-anchor="middle">obj</text><rect class="c-field" x="358" y="62" width="44" height="40"/><rect class="c-field" x="402" y="62" width="44" height="40"/><rect class="c-field" x="446" y="62" width="44" height="40"/><path class="arrow-k" marker-end="url(#t2)" d="M358 124 V106"/><text class="t-klass" x="358" y="140" text-anchor="middle">다음 할당 위치</text><text class="t-muted" x="520" y="52">아직 나눠주지 않은 에덴</text><rect class="c-field dash" x="520" y="62" width="52" height="40"/><rect class="c-field dash" x="572" y="62" width="52" height="40"/><rect class="c-field dash" x="624" y="62" width="52" height="40"/><rect class="c-field dash" x="676" y="62" width="52" height="40"/><rect class="c-field dash" x="728" y="62" width="52" height="40"/><rect class="frame" x="30" y="196" width="100" height="34" rx="6"/><text class="t-title" x="80" y="218" text-anchor="middle">스레드 A</text><path class="arrow" marker-end="url(#t1)" d="M80 196 V164 H50 V104"/><rect class="frame" x="270" y="196" width="100" height="34" rx="6"/><text class="t-title" x="320" y="218" text-anchor="middle">스레드 B</text><path class="arrow" marker-end="url(#t1)" d="M320 196 V164 H290 V104"/><text class="t-title" x="10" y="262">객체를 만들면 포인터를 객체 크기만큼 앞으로 옮긴다 · O(1)</text><text class="t-muted" x="10" y="282">TLAB 가 차면 에덴에서 새 TLAB 를 받는다. 줄 TLAB 가 없으면 젊은 세대 GC 가 발생한다.</text></svg></div>
+    <p class="figcap">책 그림 4-6 의 개념을 다시 그린 것이다. 칸 크기와 개수에는 의미가 없다.</p>
+    <h3>동작 방식</h3>
+    <ul>
+      <li>스레드가 TLAB 를 독점 제어하므로 JVM 스레드에서의 객체 할당은 <b>O(1)</b> 시간 복잡도다.</li>
+      <li>스레드가 새 객체를 만들면 저장 공간이 할당되고, 스레드 로컬 포인터가 다음 사용 가능한 주소로 갱신된다.</li>
+      <li>C 코드로는 포인터를 옮기는 작업이다. "다음 사용 가능" 포인터를 앞으로 옮기는 명령 하나로 처리된다.</li>
+      <li>스레드가 현재 TLAB 를 모두 채우면 JVM 이 에덴의 새 영역을 할당하고 새 TLAB 포인터를 준다.</li>
+      <li>더 줄 TLAB 가 없으면 젊은 세대 가비지 컬렉션이 발생한다.</li>
+    </ul>
+    <p class="note"><b>TLAB 크기는 동적이다.</b> 핫스팟은 스레드에 할당하는 TLAB 크기를 동적으로 조정한다. 특정 스레드가 메모리를 빠르게 소모하면 그 스레드에 더 큰 TLAB 를 줘서 버퍼를 새로 받는 오버헤드를 줄일 수 있다.</p>
+  </section>
+
+  <section>
+    <h2>반구형 대피 컬렉터 (4.6.2)</h2>
+    <p>대피형 컬렉터의 대표 사례가 <b>반구형 대피 컬렉터(hemispheric evacuating collector)</b> 다. 같은 크기의 두 공간을 쓴다. 핵심 개념은 한 공간을 오래 지속되지 않는 객체의 <b>임시 보관 장소</b>로 활용하는 것이다.</p>
+    <p>효과는 두 가지다. 수명이 짧은 객체가 영구 세대(tenured generation)에 섞여 들어가는 것을 막고, 전체 가비지 컬렉션의 빈도를 줄인다.</p>
+    <h3>두 공간의 기본 속성</h3>
+    <ul>
+      <li>컬렉터가 현재 활성인 반구를 수집할 때 객체는 압축 방식으로 다른 반구로 이동하고, 수집된 반구는 재사용을 위해 비워진다.</li>
+      <li>공간의 절반은 항상 완전히 비워진 상태로 유지된다.</li>
+    </ul>
+    <div class="figure"><svg viewBox="0 0 800 250" role="img" aria-label="젊은 세대 GC 전에는 에덴과 활성 서바이버 S0 에 객체가 있고 S1 은 비어 있다. GC 후에는 살아있는 객체만 S1 로 압축 복사되고 에덴과 S0 은 비워진다"><defs><marker id="s1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="head" d="M0 0 L10 5 L0 10 z"/></marker></defs><text class="t-title" x="20" y="18">① 젊은 세대 GC 전</text><text class="t-muted" x="20" y="36">에덴</text><text class="t-muted" x="350" y="36">S0 · 활성 (from)</text><text class="t-muted" x="530" y="36">S1 · 비어 있음 (to)</text><rect class="c-field" x="20" y="42" width="30" height="32"/><text class="t-muted" x="35" y="63" text-anchor="middle">×</text><rect class="c-live" x="50" y="42" width="30" height="32"/><text class="t-live" x="65" y="63" text-anchor="middle">Y</text><rect class="c-field" x="80" y="42" width="30" height="32"/><text class="t-muted" x="95" y="63" text-anchor="middle">×</text><rect class="c-field" x="110" y="42" width="30" height="32"/><text class="t-muted" x="125" y="63" text-anchor="middle">×</text><rect class="c-live" x="140" y="42" width="30" height="32"/><text class="t-live" x="155" y="63" text-anchor="middle">Y</text><rect class="c-field" x="170" y="42" width="30" height="32"/><text class="t-muted" x="185" y="63" text-anchor="middle">×</text><rect class="c-field" x="200" y="42" width="30" height="32"/><text class="t-muted" x="215" y="63" text-anchor="middle">×</text><rect class="c-live" x="230" y="42" width="30" height="32"/><text class="t-live" x="245" y="63" text-anchor="middle">Y</text><rect class="c-field" x="260" y="42" width="30" height="32"/><text class="t-muted" x="275" y="63" text-anchor="middle">×</text><rect class="c-field" x="290" y="42" width="30" height="32"/><text class="t-muted" x="305" y="63" text-anchor="middle">×</text><rect class="c-live" x="350" y="42" width="30" height="32"/><text class="t-live" x="365" y="63" text-anchor="middle">Y</text><rect class="c-live" x="380" y="42" width="30" height="32"/><text class="t-live" x="395" y="63" text-anchor="middle">Y</text><rect class="c-field" x="410" y="42" width="30" height="32"/><text class="t-muted" x="425" y="63" text-anchor="middle">×</text><rect class="c-field" x="440" y="42" width="30" height="32"/><text class="t-muted" x="455" y="63" text-anchor="middle">×</text><rect class="c-field" x="470" y="42" width="30" height="32"/><text class="t-muted" x="485" y="63" text-anchor="middle">×</text><rect class="c-empty" x="530" y="42" width="30" height="32"/><rect class="c-empty" x="560" y="42" width="30" height="32"/><rect class="c-empty" x="590" y="42" width="30" height="32"/><rect class="c-empty" x="620" y="42" width="30" height="32"/><rect class="c-empty" x="650" y="42" width="30" height="32"/><path class="arrow" marker-end="url(#s1)" d="M155 74 V112 H660 V152"/><path class="arrow" d="M380 74 V96 H660 V112"/><text class="t-muted" x="20" y="100">산 객체만 압축해서 S1 로 복사</text><text class="t-title" x="20" y="136">② GC 후</text><text class="t-muted" x="20" y="148" style="opacity:0">.</text><text class="t-muted" x="350" y="148">S0 · 비움</text><text class="t-muted" x="530" y="148">S1 · 산 객체 보관</text><text class="t-muted" x="20" y="170">에덴 · 비움</text><rect class="c-empty" x="20" y="176" width="30" height="32"/><rect class="c-empty" x="50" y="176" width="30" height="32"/><rect class="c-empty" x="80" y="176" width="30" height="32"/><rect class="c-empty" x="110" y="176" width="30" height="32"/><rect class="c-empty" x="140" y="176" width="30" height="32"/><rect class="c-empty" x="170" y="176" width="30" height="32"/><rect class="c-empty" x="200" y="176" width="30" height="32"/><rect class="c-empty" x="230" y="176" width="30" height="32"/><rect class="c-empty" x="260" y="176" width="30" height="32"/><rect class="c-empty" x="290" y="176" width="30" height="32"/><rect class="c-empty" x="350" y="176" width="30" height="32"/><rect class="c-empty" x="380" y="176" width="30" height="32"/><rect class="c-empty" x="410" y="176" width="30" height="32"/><rect class="c-empty" x="440" y="176" width="30" height="32"/><rect class="c-empty" x="470" y="176" width="30" height="32"/><rect class="c-live" x="530" y="176" width="30" height="32"/><text class="t-live" x="545" y="197" text-anchor="middle">Y</text><rect class="c-live" x="560" y="176" width="30" height="32"/><text class="t-live" x="575" y="197" text-anchor="middle">Y</text><rect class="c-live" x="590" y="176" width="30" height="32"/><text class="t-live" x="605" y="197" text-anchor="middle">Y</text><rect class="c-live" x="620" y="176" width="30" height="32"/><text class="t-live" x="635" y="197" text-anchor="middle">Y</text><rect class="c-live" x="650" y="176" width="30" height="32"/><text class="t-live" x="665" y="197" text-anchor="middle">Y</text><text class="t-title" x="20" y="238" style="fill:var(--accent)">③ 다음 GC 부터 S1 이 활성, S0 이 빈 쪽이 된다. 역할이 교대된다.</text></svg></div>
+    <p class="figcap">반구형 방식의 한 사이클. 칸 수에는 의미가 없다.</p>
+    <h3>대가와 핫스팟의 적용</h3>
+    <ul>
+      <li>컬렉터의 반구형 영역에 실제로 저장할 수 있는 메모리의 <b>두 배</b>를 쓰게 된다. 다소 비효율적으로 보이지만 공간 크기가 과도하지 않다면 유용하다.</li>
+      <li>핫스팟은 에덴과 결합한 이 반구형 방식을 젊은 세대 컬렉터에 적용한다.</li>
+      <li>핫스팟 젊은 힙의 반구형 영역이 <b>서바이버 공간</b>이다. 일반적으로 에덴보다 상대적으로 작고, 젊은 세대 컬렉션이 진행될 때마다 역할이 교대된다.</li>
+    </ul>
+    <p class="note"><b>일반 지식.</b> 서바이버를 거치게 하면 몇 번의 GC 를 버틴 객체만 오래 사는 영역으로 승격된다. 이 승격 규칙은 책 이 페이지가 아니라 일반 지식이다.</p>
+    <h3>그림 4-7. VisualGC 플러그인</h3>
+    <p>VisualGC 로 실행 중인 JVM(<code>optjava.ModelAllocator</code>, pid 13538)의 힙 영역과 GC 를 실시간으로 볼 수 있다. 왼쪽 Spaces 는 영역별 현재 사용량, 오른쪽 Graphs 는 시간에 따른 변화다.</p>
+    <figure class="shot">
+      <img src="images/week3/fig-4-7.png" alt="VisualGC 플러그인 화면. 왼쪽 Spaces 에 Metaspace, Old, Eden, S0, S1 영역이 있고 오른쪽 Graphs 에 Compile Time, Class Loader Time, GC Time, Eden, Survivor 0, Survivor 1, Old Gen, Metaspace 그래프가 있다" width="1250">
+      <figcaption>그림 4-7. VisualGC 플러그인</figcaption>
+    </figure>
+    <h3>숫자로 확인되는 것</h3>
+    <ul>
+      <li><b>S0 와 S1 이 번갈아 찬다.</b> 두 그래프의 막대가 엇갈려 올라가고, 한쪽은 항상 비어 있다. 반구형 방식의 역할 교대가 그대로 보인다.</li>
+      <li><b>횟수가 맞아떨어진다.</b> 에덴 374번과 Old 11번을 더하면 385번으로 GC Time 의 385 collections 와 같다. 시간도 2.006s 와 0.147s 를 더하면 2.153s 다.</li>
+      <li><b>젊은 세대 수집이 훨씬 잦다.</b> 374번 대 11번이다. 대부분의 객체가 젊어서 죽는다는 약한 세대 가설과 맞는다.</li>
+      <li><b>한 번당 비용은 젊은 세대 쪽이 작다.</b> 계산하면 에덴이 약 5.4ms(2.006s ÷ 374), Old 가 약 13.4ms(147.330ms ÷ 11)다. 산 객체만 옮기는 대피 방식이라 수집이 가볍다.</li>
+      <li><b>Last Cause: Allocation Failure.</b> 마지막 GC 의 원인이 할당 실패다. 앞의 TLAB 에서 본 "더 줄 할당 버퍼가 없으면 젊은 세대 GC 가 발생한다"는 흐름과 이어진다.</li>
+    </ul>
+    <p class="note"><b>읽기 주의.</b> 라벨 괄호는 (최대 크기, 현재 확보한 용량): 현재 사용량으로 읽었다. 이 표기 규칙은 책 이 페이지에 설명이 없고 VisualGC 의 일반적인 표기를 따라 읽은 것이다. 위 값들이 모두 이 규칙에서 현재 사용량 ≤ 확보 용량을 만족해서 그렇게 판단했다. 5.4ms 와 13.4ms 는 그림의 수치로 내가 나눈 값이고 책에 나오는 숫자는 아니다. Metaspace 가 클래스 메타데이터를 두는 힙 밖 영역이라는 점도 일반 지식이다.</p>
+  </section>
+  </div>
+
+  <div class="panel" role="tabpanel" id="p-parallel" aria-labelledby="t-parallel">
+  <section>
+    <h2>병렬 컬렉터 (4.7)</h2>
+    <p>자바 8 이하에서 자바 가상 머신의 기본 가비지 컬렉터는 병렬 컬렉터였다. 이 컬렉터들은 젊은 세대와 전체 컬렉션 모두에서 <b>STW(stop-the-world)</b> 방식으로 작동하고, <b>처리량 최적화</b>에 중점을 둔다. 애플리케이션 스레드를 모두 중지한 뒤 사용 가능한 모든 CPU 코어로 메모리를 가능한 한 빠르게 수집한다.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>컬렉터</th><th>역할</th></tr></thead>
+        <tbody>
+          <tr><td>병렬 가비지 컬렉션</td><td>젊은 세대를 위한 가장 간단한 컬렉터</td></tr>
+          <tr><td>ParNew</td><td>병렬 가비지 컬렉션의 변형. 지금은 쓰지 않는 동시 마크 스윕 컬렉터와 함께 쓰였다</td></tr>
+          <tr><td>ParallelOld</td><td>오래된 세대를 위한 병렬 컬렉터</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>병렬 컬렉터는 여러 면에서 비슷하다. 가능한 한 빠르게 활성 객체를 식별하려고 여러 스레드를 쓰고, 최소한의 기록 관리(bookkeeping)로 작동하도록 만들어졌다.</p>
+    <p class="note"><b>버전 주의.</b> 자바 17부터 동시 마크 스윕 컬렉터가 제거되어 하나의 병렬 가비지 컬렉션만 존재한다. 이 컬렉션은 젊은 세대와 오래된 세대의 병렬 컬렉션으로 구성된다. 자바 11 이상의 기본 컬렉터는 G1 이다(다음 장).</p>
+  </section>
+
+  <section>
+    <h2>젊은 병렬 컬렉션 (4.7.1)</h2>
+    <h3>언제 시작되는가</h3>
+    <p>가장 일반적인 컬렉션이다. 스레드가 에덴에 객체를 할당하려는데 TLAB 에 공간이 없고, JVM 이 새 TLAB 도 줄 수 없을 때 발생한다. 이때 JVM 은 모든 애플리케이션 스레드를 중지할 수밖에 없다. 한 스레드가 할당할 수 없다면 곧 모든 스레드가 할당할 수 없는 상태가 되기 때문이다. 앞의 "GC 기술" 탭에서 본 "줄 TLAB 가 없으면 젊은 세대 GC" 가 이 지점이다.</p>
+    <p class="note"><b>TLAB 밖의 할당.</b> 스레드는 TLAB 밖에서도 메모리를 할당할 수 있다(메모리 블록이 클 때 등). 이상적인 상황은 비 TLAB 할당의 비율이 낮을 때다. 수명이 짧은 큰 객체를 너무 많이 할당하면 추가 전체 가비지 컬렉션이 유발되고, 이는 젊은 세대 컬렉션보다 비용이 훨씬 크다.</p>
+    <h3>어떻게 진행되는가</h3>
+    <ul>
+      <li>애플리케이션 스레드를 모두 중지한다.</li>
+      <li>젊은 세대(에덴과 현재 비어 있지 않은 서바이버 공간)를 확인하고, 가비지가 아닌 모든 객체를 식별한다.</li>
+      <li>GC 루트를 시작점으로 병렬 마킹 스캔을 한다. 오래된 세대에서 오는 루트는 카드 테이블로 식별한다.</li>
+      <li>생존한 모든 객체를 현재 비어 있는 서바이버 공간으로 이동시킨다. 이동하면서 객체의 세대 카운트를 증가시킨다.</li>
+      <li>에덴과 방금 대피한 서바이버 공간을 재사용 가능한 공간으로 표시한다.</li>
+    </ul>
+    <figure class="shot">
+      <img src="images/week3/fig-4-9.png" alt="그림 4-9 젊은 세대 수집. 스택의 참조가 에덴의 생존 객체 0 과 아래 서바이버의 객체 1, 2 를 가리키고, 이 객체들이 위쪽 빈 서바이버로 이동하는 화살표가 그려져 있다" width="990">
+      <figcaption>생존 객체(초록 0, 파랑 1, 주황 2)가 빈 서바이버로 이동한다. 숫자는 세대 카운트로 읽힌다.</figcaption>
+    </figure>
+    <figure class="shot">
+      <img src="images/week3/fig-4-10.png" alt="그림 4-10 젊은 세대를 대피시키기. 이동이 끝나 서바이버 하나에 세대 카운트가 1 증가한 객체들이 모여 있고 에덴과 다른 서바이버는 재사용 가능한 상태다" width="1000">
+      <figcaption>이동 뒤. 객체들이 한 서바이버에 모였고 숫자가 1씩 늘었다(0은 1, 1은 2, 2는 3). 에덴과 다른 서바이버는 비워진다.</figcaption>
+    </figure>
+    <p>이 방식은 약한 세대 가설을 최대한 활용해 <b>활성 객체만 처리</b>한다. 또 가능한 한 효율적으로 작동하며 모든 코어를 활용해 STW 일시 중지 시간을 줄이는 것을 목표로 한다.</p>
+    <p class="note"><b>읽기 주의.</b> 그림 속 숫자가 세대 카운트라는 해석은 본문의 "이동하면서 세대 카운트를 증가시킴"과 그림의 숫자 변화(0, 1, 2에서 1, 2, 3)를 맞춘 것이다. 이전 탭의 반구형 컬렉터가 바로 이 동작이다. 서바이버 둘이 번갈아 쓰이고 하나는 비어 있다.</p>
+  </section>
+
+  <section>
+    <h2>오래된 병렬 컬렉션 (4.7.2)</h2>
+    <p>ParallelOld 는 자바 8까지 오래된 세대의 기본 컬렉터였다. 지속적인 처리량 성능을 중시하는 일부 애플리케이션에서는 지금도 G1 보다 나은 성능을 보인다.</p>
+    <p>병렬 가비지 컬렉션과 공통점이 있지만 근본적인 차이가 있다. <b>병렬 가비지 컬렉션은 반구형 대피 컬렉터이고, ParallelOld 는 단일 연속 메모리 공간을 쓰는 압축형 컬렉터다.</b></p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>젊은 병렬 컬렉션</th><th>ParallelOld</th></tr></thead>
+        <tbody>
+          <tr><td>방식</td><td>반구형 대피. 산 객체를 다른 공간으로 복사한다</td><td>제자리 압축(in-place compaction). 같은 공간 안에서 재배치한다</td></tr>
+          <tr><td>대피할 공간</td><td>서바이버 공간이 있다</td><td>오래된 세대에는 대피할 공간이 없다</td></tr>
+          <tr><td>메모리 사용</td><td>반쪽은 항상 비워 둔다</td><td>매우 효율적이고 단편화를 피한다</td></tr>
+          <tr><td>대가</td><td>메모리를 두 배로 쓴다</td><td>전체 컬렉션 사이클에서 상당한 CPU 사용량이 든다</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>오래된 세대에는 대피할 공간이 없어서, 객체가 소멸하며 남긴 공간을 회수하려고 같은 세대 안에서 객체를 재배치한다.</p>
+    <figure class="shot">
+      <img src="images/week3/fig-4-11.png" alt="그림 4-11. 영구 세대에서 T 와 죽은 객체가 섞여 있던 칸들이, 같은 공간의 앞쪽으로 T 만 모이고 뒤쪽이 통째로 빈 상태로 바뀐다" width="960">
+      <figcaption>같은 공간 안에서 산 객체(T)를 앞쪽으로 모아 뒤쪽을 한 덩어리의 빈 공간으로 만든다.</figcaption>
+    </figure>
+    <p class="note"><b>캡션 주의.</b> 그림의 캡션은 "대피 컬렉션"이지만 그림이 보여주는 것은 본문이 말한 제자리 압축이다. 그림의 "영구 세대" 라벨은 오래된(tenured) 세대를 뜻한다.</p>
+    <h3>두 세대는 성격이 다르다</h3>
+    <ul>
+      <li><b>젊은 공간</b>은 수명이 짧은 객체를 처리하는 곳이라 점유율이 할당과 GC 정리 작업에 따라 크게 변동한다.</li>
+      <li><b>오래된 공간</b>은 눈에 띄는 변동이 적다. 간혹 큰 객체가 직접 생성되기도 하지만 보통은 컬렉션 때만 바뀐다. 젊은 세대에서 승격되거나, 오래된 세대나 전체 컬렉션에서 객체를 다시 검사하고 재배치할 때 바뀐다.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>직렬 컬렉터와 SerialOld (4.7.3)</h2>
+    <p>주로 <b>경고의 사례</b>로 실린 컬렉터다. 병렬 가비지 컬렉션, ParallelOld 와 비슷하게 작동하지만 가비지 컬렉션을 수행할 때 <b>단일 CPU 코어만</b> 쓴다. 동시 실행을 지원하지 않고 여전히 STW 방식이다.</p>
+    <p>멀티코어 시스템에서는 비효율적이다. 코어 하나가 STW 수집을 하는 동안 나머지 CPU 는 모두 유휴 상태여서 일시 중지 시간이 불필요하게 길어진다. 특별한 이유가 없다면 쓰지 않는 것이 좋다(9.4.1절 "컨테이너와 가비지 컬렉션").</p>
+  </section>
+
+  <section>
+    <h2>병렬 컬렉터의 한계 (4.7.4)</h2>
+    <p>병렬 컬렉터는 한 번에 세대 전체를 처리하며 가능한 한 효율적으로 수집하도록 설계됐다. 그러나 완전한 STW 방식이라는 단점이 있다. 약한 세대 가설 덕분에 젊은 세대에서는 생존 객체가 매우 적어 보통 큰 문제가 되지 않는다.</p>
+    <p class="note"><b>비용은 산 객체 수에 비례한다.</b> 젊은 병렬 컬렉터는 죽은 객체를 전혀 건드리지 않도록 설계됐고, 마킹 단계의 길이는 생존 객체의 (적은) 수에 비례한다. 앞서 "세대별 힙의 장점"에서 본 내용과 같은 이야기다.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>젊은 세대 컬렉션</th><th>오래된 세대 컬렉션</th></tr></thead>
+        <tbody>
+          <tr><td>크기</td><td>작다</td><td>기본적으로 젊은 세대의 7배</td></tr>
+          <tr><td>생존 객체</td><td>매우 적다</td><td>수명이 긴 객체가 많아 많을 가능성이 크다</td></tr>
+          <tr><td>일시 중지</td><td>대부분의 워크로드에서 매우 짧다. 기본 설정 2GB JVM 이면 몇 밀리초, 심지어 밀리초 이하일 수도 있다</td><td>젊은 세대보다 훨씬 길어질 수 있다</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>마킹 시간은 해당 영역의 활성 객체 수에 비례한다. 오래된 객체는 수명이 긴 경우가 많아서 전체 컬렉션에서 생존하는 객체가 많아질 가능성이 크다.</p>
+    <p class="note"><b>ParallelOld 의 약점.</b> STW 시간이 힙 크기에 거의 선형으로 비례해 늘어난다. 힙이 계속 커지면 일시 중지 시간 문제로 확장성의 한계가 드러나기 시작한다.</p>
+    <p>가비지 컬렉션 이론을 처음 접하면 마크 앤 스윕 알고리즘에 약간의 수정을 가해 STW 시간을 줄일 수 있다고 생각하기 쉽다. 하지만 현실적으로 불가능하다. 이 문장은 이 페이지에서 끊겨 있어서 이유는 다음 페이지에서 이어진다.</p>
+    <p class="figcap">그래서 다음 장에서 G1, 동시 컬렉터, ZGC 같은 대안을 다룬다.</p>
+  </section>
+  </div>
+
+  <div class="panel" role="tabpanel" id="p-hotspot" aria-labelledby="t-hotspot">
+    <section>
+    <h2>핫스팟이란</h2>
+    <p>오라클과 OpenJDK의 기본 JVM 구현체다. JVM은 스펙이고 핫스팟은 그 구현체 중 하나다. 이름은 자주 실행되는 코드(핫스팟)를 찾아 집중적으로 최적화한다는 데서 왔다.</p>
+    <ul>
+      <li><b>인터프리터와 프로파일링.</b> 처음엔 바이트코드를 해석하고, 실행 횟수를 센다.</li>
+      <li><b>JIT 컴파일러.</b> 자주 도는 메서드를 기계어로 컴파일한다. C1은 빠른 컴파일, C2는 고최적화.</li>
+      <li><b>가비지 컬렉터.</b> G1, ZGC 등을 구현한다.</li>
+      <li>C++로 작성되어 있어서 책에서 C 포인터, C 힙을 언급한다.</li>
+      <li>다른 구현체로 OpenJ9(IBM), GraalVM 등이 있다.</li>
+    </ul>
+  </section>
+  </div>
+
+  <footer>출처: 4.3.1 런타임에서 객체 표현, 4.5 약한 세대 가설, 4.6 프로덕션 가비지 컬렉션 기술, 4.7 병렬 컬렉터, 그림 4-2 ~ 4-11</footer>
+</main>
+<script>
+document.documentElement.classList.add("js");
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+  var panels = tabs.map(function (t) { return document.getElementById(t.getAttribute("aria-controls")); });
+  function show(i, focus) {
+    tabs.forEach(function (t, j) {
+      var on = i === j;
+      t.setAttribute("aria-selected", on ? "true" : "false");
+      t.tabIndex = on ? 0 : -1;
+      panels[j].hidden = !on;
+    });
+    try { history.replaceState(null, "", "#" + panels[i].id); } catch (e) {}
+    if (focus) tabs[i].focus();
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener("click", function () { show(i); });
+    t.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowRight") { e.preventDefault(); show((i + 1) % tabs.length, true); }
+      if (e.key === "ArrowLeft") { e.preventDefault(); show((i + tabs.length - 1) % tabs.length, true); }
+    });
+  });
+  var start = 0;
+  try { var h = location.hash.slice(1); panels.forEach(function (p, i) { if (p.id === h) start = i; }); } catch (e) {}
+  show(start);
+})();
+</script>
+</html>
